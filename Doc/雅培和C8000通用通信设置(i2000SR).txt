@@ -1,0 +1,28 @@
+雅培和C8000通用通信设置： 
+1.System -> Configuration -> Host Release mode -> Configure (F6) 
+  
+    Release mode: ①Manual         ②Automatic  [√] 
+                  ③Hold           ④Automatic with exceptions 
+    Host query timeout [ 20 ]  [Range 5-60 seconds] 
+   
+    Communications: Bidirectional host:  ①On  [√]   ②On with query 
+                                         ③Off 
+    Transmit to host: 
+      Approved patient results:  ①Collated      ②Single [√]
+      注：Collated为整体传送，即该标本的所有项目做完后才会传送，即使手工传输也是如此
+      Approved QC results:  ①On    ②Off  [√] 
+    Doctor, location and draw date/time:  ①On     ②Off  [√] 
+2.System -> Configuration -> Serial Ports -> Details (F5) 
+     
+    Port Type:  ①Lis  [√]   ②ARM     ③LAS 
+    Port ID:    Com5 (Connetor P3) 
+    Bond rate:  9600 
+    Parity:     None 
+    Data bits:  8 
+    Stop bits:  1 
+    注：仪器为9针公头（控制电脑）
+        2-3，3-2，5-5，4-6，6-4，7-8，8-7
+3.如果要进行手工传输数据，请在“Stored Results”画面先选择(F3 Find)某个或 
+  某几个标本，选择后再传输(Transmit to host)，尽量不要用(F2 Select All) 再传输。 
+--------------------------- 
+雅培也采用模块化设计C8000 I2000组合后成为CI8200
