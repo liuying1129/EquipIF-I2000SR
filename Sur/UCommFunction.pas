@@ -11,6 +11,7 @@ function EnCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'DESCrypt.
 function GetHDSn(const RootPath:Pchar):Pchar;stdcall;external 'LYFunction.dll';
 function TryStrToFloatExt(const pSourStr:Pchar; var Value: Single): Boolean;stdcall;external 'LYFunction.dll';
 function StrToList(const SourStr:string;const Separator:string):TStrings;
+procedure WriteLog(const ALogStr: Pchar);stdcall;external 'LYFunction.dll';
 
 implementation
 

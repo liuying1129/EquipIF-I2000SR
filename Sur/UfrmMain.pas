@@ -88,6 +88,7 @@ var
   QuaContSpecNoD:string;
   EquipChar:string;
   OnLineIDPrefix:string;//联机标识前缀
+  ifRecLog:boolean;//是否记录调试日志
 
   RFM:STRING;       //返回数据
   hnd:integer;
@@ -225,8 +226,9 @@ begin
   StopBit:=ini.ReadString(IniSection,'停止位','1');
   ParityBit:=ini.ReadString(IniSection,'校验位','None');
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
+  ifRecLog:=ini.readBool(IniSection,'调试日志',false);
 
-  GroupName:=trim(ini.ReadString(IniSection,'组别',''));
+  GroupName:=trim(ini.ReadString(IniSection,'工作组',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
   OnLineIDPrefix:=trim(ini.ReadString(IniSection,'联机标识前缀',''));
   SpecType:=ini.ReadString(IniSection,'默认样本类型','');
@@ -400,7 +402,7 @@ begin
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
       '校验位'+#2+'Combobox'+#2+'None'+#13+'Even'+#13+'Odd'+#13+'Mark'+#13+'Space'+#2+'0'+#2+#2+#3+
-      '组别'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '联机标识前缀'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
@@ -408,6 +410,7 @@ begin
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '组合项目代码'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
+      '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '低值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2;
@@ -449,11 +452,6 @@ procedure TfrmMain.ToolButton5Click(Sender: TObject);
 var
   ss:string;
 begin
-  //顺便注册COM组件 start
-  if ShellExecute(Handle, 'Open', Pchar(ExtractFilePath(application.ExeName)+'注册COM组件.bat'), '', '', SW_ShowNormal)<=32 then
-    MessageDlg('激活通信接口(注册COM组件.bat)打开失败!',mtError,[mbOK],0);
-  //顺便注册COM组件 stop
-
   ss:='RegisterNum'+#2+'Edit'+#2+#2+'0'+#2+'将该窗体标题栏上的字符串发给开发者,以获取注册码'+#2;
   if bRegister then exit;
   if ShowOptionForm(Pchar('注册:'+GetHDSn('C:\')+'-'+GetHDSn('D:\')+'-'+ChangeFileExt(ExtractFileName(Application.ExeName),'')),Pchar(IniSection),Pchar(ss),Pchar(ChangeFileExt(Application.ExeName,'.ini'))) then
@@ -482,6 +480,7 @@ begin
   
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
+  WriteLog(pchar(Str));
 
 {
 希望将此程序做成标准的ASTM通信接口
@@ -504,6 +503,7 @@ I2000SR传04给LIS,表示该次通信完成
     rfm:=rfm+Str;
     ComPort1.WriteStr(ACK);//发送确认指令
     memo1.Lines.Add('发送06');
+    WriteLog('发送06');
   end ELSE
   begin
     rfm:=rfm+Str;
@@ -511,6 +511,7 @@ I2000SR传04给LIS,表示该次通信完成
     begin
       ComPort1.WriteStr(ACK);//发送确认指令//测试则注释
       memo1.Lines.Add('发送06');
+      WriteLog('发送06');
     end;
   end;
 
@@ -574,7 +575,7 @@ I2000SR传04给LIS,表示该次通信完成
           (GroupName),(SpecType),(SpecStatus),(EquipChar),
           (CombinID),'',(LisFormCaption),(ConnectString),
           (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-          true,true,'常规');
+          ifRecLog,true,'常规');
         if not VarIsEmpty(FInts) then FInts:= unAssigned;
       end;
     
