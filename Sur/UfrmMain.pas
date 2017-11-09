@@ -89,6 +89,7 @@ var
   EquipChar:string;
   OnLineIDPrefix:string;//联机标识前缀
   ifRecLog:boolean;//是否记录调试日志
+  BacT3D:boolean;//是否BacT3D设备
 
   RFM:STRING;       //返回数据
   hnd:integer;
@@ -227,6 +228,7 @@ begin
   ParityBit:=ini.ReadString(IniSection,'校验位','None');
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
   ifRecLog:=ini.readBool(IniSection,'调试日志',false);
+  BacT3D:=ini.readBool(IniSection,'BacT3D',false);
 
   GroupName:=trim(ini.ReadString(IniSection,'工作组',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
@@ -405,6 +407,7 @@ begin
       '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '联机标识前缀'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      'BacT3D'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本类型'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
@@ -554,6 +557,7 @@ I2000SR传04给LIS,表示该次通信完成
           if ls4.Count>4 then
           begin
             if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
+            if BacT3D then dlttype:=OnLineIDPrefix+ls4[0]+'^'+ls4[1]+'^'+ls4[2]+'^'+ls4[3]+'^'+ls4[4];
           end else dlttype:=OnLineIDPrefix+ls2[2];
           ls4.Free;
           
