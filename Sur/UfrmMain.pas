@@ -7,7 +7,7 @@ uses
   LYTray, Menus, StdCtrls, Buttons, ADODB,
   ActnList, AppEvnts, ComCtrls, ToolWin, ExtCtrls,
   registry,inifiles,Dialogs,
-  StrUtils, DB, ComObj,Variants,CPort,ShellAPI;
+  StrUtils, DB, ComObj,Variants,CPort,ShellAPI, PerlRegEx;
 
 type
   TfrmMain = class(TForm)
@@ -318,8 +318,16 @@ end;
 function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
 var
   ls3,ls4:tstrings;
+  RegEx: TPerlRegEx;
 begin
-  ls3:=StrToList(Value,'|');
+  //ls3:=StrToList(Value,'|');
+  RegEx := TPerlRegEx.Create(nil);
+  RegEx.Subject := Value;
+  RegEx.RegEx   := '\|';
+  ls3 := TStringList.Create;
+  RegEx.Split(ls3,MaxInt);//MaxInt,表示能分多少就分多少
+  FreeAndNil(RegEx);
+
   IF ls3.Count<3 then
   begin
     ls3.Free;
@@ -330,7 +338,13 @@ begin
   ls3.Free;
 
   //迪瑞CS-600B Start
-  ls4:=StrToList(result,'^');
+  //ls4:=StrToList(result,'^');
+  RegEx := TPerlRegEx.Create(nil);
+  RegEx.Subject := result;
+  RegEx.RegEx   := '\^';
+  ls4 := TStringList.Create;
+  RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
+  FreeAndNil(RegEx);
   IF ls4.Count>1 then result:=ls4[1];
   ls4.Free;
   //迪瑞CS-600B Stop
@@ -339,7 +353,7 @@ begin
   result:=rightstr(result,4);
 end;
 
-function StrToList(const SourStr:string;const Separator:string):TStrings;
+{function StrToList(const SourStr:string;const Separator:string):TStrings;
 //根据指定的分隔字符串(Separator)将字符串(SourStr)导入到字符串列表中
 var
   vSourStr,s:string;
@@ -357,7 +371,7 @@ begin
   end;
   Result.Add(vSourStr);
   s:=vSourStr;
-end;
+end;//}
 
 function TListToVariant(AList:TList):OleVariant;
 var
@@ -450,8 +464,8 @@ begin
   if not OpenDialog1.Execute then exit;
   ls:=Tstringlist.Create;
   ls.LoadFromFile(OpenDialog1.FileName);
-  //rfm:=ls.Text;
-  //ComPort1RxChar(nil,0);
+  rfm:=ls.Text;
+  ComPort1RxChar(nil,0);
   ls.Free;
 end;
 
@@ -482,6 +496,7 @@ VAR
   Str:string;
   CheckDate:string;
   msgRFM:STRING;//一个完整的消息
+  RegEx: TPerlRegEx;
 begin
   ComPort1.ReadStr(Str,count);
   
@@ -538,55 +553,66 @@ I2000SR传04给LIS,表示该次通信完成
     ExtractStrings([#$D,#$A],[],Pchar(rfm),ls3);//将每行导入到字符串列表中
     for i :=0  to ls3.Count-1 do//该次通信的每一行
     begin
-      if uppercase(leftstr(trim(ls3[i]),2))<>'L|' THEN continue;//消息尾//I2000SR在一个消息(message)中仅传输一个样本
+      if pos(#$4,ls3[i])<=0 THEN continue;//一次通信链路的结束
     
-      msgRFM:=copy(rfm,1,pos(ls3[i],rfm));//msgRFM表示一个完整的消息
-      rfm:=copy(rfm,pos(ls3[i],rfm)+length(ls3[i]),MaxInt);
+      msgRFM:=copy(rfm,1,pos(#$4,rfm));//msgRFM表示一个完整的通信链路
+      rfm:=copy(rfm,pos(#$4,rfm)+1,MaxInt);
 
       if pos('O|',uppercase(msgRFM))<=0 then continue;//样本号行
       if pos('R|',uppercase(msgRFM))<=0 then continue;//结果行
 
       SpecNo:='';CheckDate:='';
-
+      
       ls:=TStringList.Create;
       ExtractStrings([#$D,#$A],[],Pchar(msgRFM),ls);//将消息的每行导入到字符串列表中
-      ReceiveItemInfo:=VarArrayCreate([0,ls.Count-1],varVariant);
       for j :=0  to ls.Count-1 do//一个消息中的每一行
       begin
-        dlttype:='';sValue:='';
-        ls2:=StrToList(ls[j],'|');
-        if ls2.Count>3 then
-        begin
-          ls4:=StrToList(ls2[2],'^');//ls2[2]中有可能包含试剂批号信息，故联机标识需再取细点
-          if ls4.Count>4 then
-          begin
-            if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
-            if BacT3D then dlttype:=OnLineIDPrefix+ls4[0]+'^'+ls4[1]+'^'+ls4[2]+'^'+ls4[3]+'^'+ls4[4];
-          end else dlttype:=OnLineIDPrefix+ls2[2];
-          ls4.Free;
-          
-          sValue:=ls2[3];
-        end;
-        if (uppercase(leftstr(trim(ls[j]),2))='R|')AND(ls2.Count>12) then CheckDate:=copy(ls2[12],1,4)+'-'+copy(ls2[12],5,2)+'-'+copy(ls2[12],7,2)+' '+copy(ls2[12],9,2)+':'+copy(ls2[12],11,2);
-        ls2.Free;
         if uppercase(leftstr(trim(ls[j]),2))='O|' then SpecNo:=GetSpecNo(ls[j]);
-        ReceiveItemInfo[j]:=VarArrayof([dlttype,sValue,'','']);
+
+        if uppercase(leftstr(trim(ls[j]),2))='R|' then
+        begin
+          dlttype:='';sValue:='';
+          RegEx := TPerlRegEx.Create(nil);
+          RegEx.Subject := ls[j];
+          RegEx.RegEx   := '\|';
+          ls2 := TStringList.Create;
+          RegEx.Split(ls2,MaxInt);//MaxInt,表示能分多少就分多少
+          FreeAndNil(RegEx);
+          if ls2.Count>3 then
+          begin
+            RegEx := TPerlRegEx.Create(nil);
+            RegEx.Subject := ls2[2];
+            RegEx.RegEx   := '\^';
+            ls4 := TStringList.Create;
+            RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
+            FreeAndNil(RegEx);
+            if ls4.Count>4 then
+            begin
+              if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
+              if ls4[3]='BC' then dlttype:=OnLineIDPrefix+ls4[4];//BacT3D,结果值有可能有几种(阴阳、时长等)，BC是阴阳，TTD是时长
+            end else dlttype:=OnLineIDPrefix+ls2[2];
+            ls4.Free;
+
+            sValue:=ls2[3];
+          end;
+          if ls2.Count>12 then CheckDate:=copy(ls2[12],1,4)+'-'+copy(ls2[12],5,2)+'-'+copy(ls2[12],7,2)+' '+copy(ls2[12],9,2)+':'+copy(ls2[12],11,2);
+          ls2.Free;
+          if SpecNo='' then SpecNo:=formatdatetime('nnss',now);
+          ReceiveItemInfo:=VarArrayCreate([0,1-1],varVariant);
+          ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
+          if bRegister and(dlttype<>'') then
+          begin
+            FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
+            FInts.fData2Lis(ReceiveItemInfo,(SpecNo),CheckDate,
+              (GroupName),(SpecType),(SpecStatus),(EquipChar),
+              (CombinID),'',(LisFormCaption),(ConnectString),
+              (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
+              ifRecLog,true,'常规');
+            if not VarIsEmpty(FInts) then FInts:= unAssigned;
+          end;
+        end;
       end;
       ls.Free;
-
-      if SpecNo='' then SpecNo:=formatdatetime('nnss',now);
-
-      if bRegister then
-      begin
-        FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
-        FInts.fData2Lis(ReceiveItemInfo,(SpecNo),CheckDate,
-          (GroupName),(SpecType),(SpecStatus),(EquipChar),
-          (CombinID),'',(LisFormCaption),(ConnectString),
-          (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-          ifRecLog,true,'常规');
-        if not VarIsEmpty(FInts) then FInts:= unAssigned;
-      end;
-    
     end;
     ls3.Free;
   end;

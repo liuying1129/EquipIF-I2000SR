@@ -10,7 +10,7 @@ function DeCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'DESCrypt.
 function EnCryptStr(aStr: Pchar; aKey: Pchar): Pchar;stdcall;external 'DESCrypt.dll';//加密
 function GetHDSn(const RootPath:Pchar):Pchar;stdcall;external 'LYFunction.dll';
 function TryStrToFloatExt(const pSourStr:Pchar; var Value: Single): Boolean;stdcall;external 'LYFunction.dll';
-function StrToList(const SourStr:string;const Separator:string):TStrings;
+//function StrToList(const SourStr:string;const Separator:string):TStrings;
 procedure WriteLog(const ALogStr: Pchar);stdcall;external 'LYFunction.dll';
 
 implementation
@@ -63,7 +63,7 @@ begin
   end;
 end;
 
-function StrToList(const SourStr:string;const Separator:string):TStrings;
+{function StrToList(const SourStr:string;const Separator:string):TStrings;
 //根据指定的分隔字符串(Separator)将字符串(SourStr)导入到字符串列表中
 var
   vSourStr,s:string;
@@ -78,9 +78,9 @@ begin
     ll:=pos(Separator,vSourStr);
     Result.Add(copy(vSourStr,1,ll-1));
     delete(vSourStr,1,ll+lll-1);
-  end;  //}
+  end;
   Result.Add(vSourStr);
   s:=vSourStr;
-end;
+end;//}
 
 end.
