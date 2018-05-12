@@ -89,7 +89,6 @@ var
   EquipChar:string;
   OnLineIDPrefix:string;//联机标识前缀
   ifRecLog:boolean;//是否记录调试日志
-  BacT3D:boolean;//是否BacT3D设备
 
   RFM:STRING;       //返回数据
   hnd:integer;
@@ -232,7 +231,6 @@ begin
   ParityBit:=ini.ReadString(IniSection,'校验位','None');
   autorun:=ini.readBool(IniSection,'开机自动运行',false);
   ifRecLog:=ini.readBool(IniSection,'调试日志',false);
-  BacT3D:=ini.readBool(IniSection,'BacT3D',false);
 
   GroupName:=trim(ini.ReadString(IniSection,'工作组',''));
   EquipChar:=trim(uppercase(ini.ReadString(IniSection,'仪器字母','')));//读出来是大写就万无一失了
