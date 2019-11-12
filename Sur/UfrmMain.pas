@@ -50,6 +50,7 @@ type
     procedure ToolButton5Click(Sender: TObject);
     procedure ToolButton7Click(Sender: TObject);
     procedure ComPort1RxChar(Sender: TObject; Count: Integer);
+    procedure ComPort1RxFlag(Sender: TObject);
   private
     { Private declarations }
     procedure WMSyscommand(var message:TWMMouse);message WM_SYSCOMMAND;
@@ -288,6 +289,7 @@ begin
           else if ParityBit='Space' then
             ComPort1.Parity.Bits:=prSpace
             else ComPort1.Parity.Bits:=prNone;
+  ComPort1.EventChar:=#4;//ASTM协议规定,设备传04给LIS,表示该次通信完成
   try
     ComPort1.Open;
   except
@@ -463,23 +465,15 @@ end;
 
 procedure TfrmMain.ComPort1RxChar(Sender: TObject; Count: Integer);
 VAR
-  SpecNo:string;
-  i,j:integer;
-  dlttype:string;
-  sValue:string;
-  FInts:OleVariant;
-  ReceiveItemInfo:OleVariant;
-  ls3,ls,ls2,ls4:tstrings;
   Str:string;
-  CheckDate:string;
-  msgRFM:STRING;//一个完整的消息
-  RegEx: TPerlRegEx;
 begin
   ComPort1.ReadStr(Str,count);
   
   if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
+  memo1.Lines.Add(StrToHex(pchar(Str)));
   WriteLog(pchar(Str));
+  WriteLog(StrToHex(pchar(Str)));
 
 {
 希望将此程序做成标准的ASTM通信接口
@@ -513,86 +507,108 @@ I2000SR传04给LIS,表示该次通信完成
       WriteLog('发送06');
     end;
   end;
+end;
 
-  //Str:=#$4;//测试
-  if pos(#$4,Str)>0 then//一次通信链路的结束
+procedure TfrmMain.ComPort1RxFlag(Sender: TObject);
+//事件字符(EventChar)触发OnRxChar与OnRxFlag.据观察,先OnRxChar再OnRxFlag
+//非事件字符触发OnRxChar
+VAR
+  SpecNo:string;
+  i,j:integer;
+  dlttype:string;
+  sValue:string;
+  FInts:OleVariant;
+  ReceiveItemInfo:OleVariant;
+  ls,ls2,ls4,ls5:tstrings;
+  CheckDate:string;
+  msgRFM:STRING;//一个完整的消息
+  RegEx: TPerlRegEx;
+  ifHaveNotFinishedPack:boolean;
+begin
+  while pos(#$2,rfm)>0 do
   begin
-    while pos(#$2,rfm)>0 do
-    begin
-      delete(rfm,pos(#$2,rfm),2);//删除每帧的第一个字符(#$02),第二个字符(帧序号)
-    end;
-    while pos(#$17,rfm)>0 do
-    begin
-      delete(rfm,pos(#$17,rfm),5);//删除前面帧的最后5个字符<ETB><C1><C2><CR><LF>,暂时只发现GEM3000有ETB
-    end;
+    delete(rfm,pos(#$2,rfm),2);//删除每帧的第一个字符(#$02),第二个字符(帧序号)
+  end;
+  while pos(#$17,rfm)>0 do
+  begin
+    delete(rfm,pos(#$17,rfm),5);//删除前面帧的最后5个字符<ETB><C1><C2><CR><LF>,暂时只发现GEM3000有ETB
+  end;
 
-    ls3:=TStringList.Create;
-    ExtractStrings([#$D,#$A],[],Pchar(rfm),ls3);//将每行导入到字符串列表中
-    for i :=0  to ls3.Count-1 do//该次通信的每一行
+  ifHaveNotFinishedPack:=rightstr(rfm,1)<>#4;//最后一个字符不为#4,表示存在未结束的包
+
+  RegEx := TPerlRegEx.Create(nil);
+  RegEx.Subject := rfm;
+  RegEx.RegEx   := #4;//按04拆包
+  ls5:=TStringList.Create;
+  RegEx.Split(ls5,MaxInt);//MaxInt,表示能分多少就分多少
+  FreeAndNil(RegEx);
+  
+  if ifHaveNotFinishedPack then rfm:=ls5[ls5.Count-1] else rfm:='';
+  for i :=0  to ls5.Count-1 do
+  begin
+    if ifHaveNotFinishedPack and(i=ls5.Count-1) then continue;//表示最后一个未结束的包
+
+    msgRFM:=ls5[i];//msgRFM表示一个完整的通信链路
+
+    if pos('O|',uppercase(msgRFM))<=0 then continue;//样本号行
+    if pos('R|',uppercase(msgRFM))<=0 then continue;//结果行
+
+    SpecNo:='';CheckDate:='';
+
+    ls:=TStringList.Create;
+    ExtractStrings([#$D,#$A],[],Pchar(msgRFM),ls);//将消息的每行导入到字符串列表中
+    for j :=0  to ls.Count-1 do//一个消息中的每一行
     begin
-      if pos(#$4,ls3[i])<=0 THEN continue;//一次通信链路的结束
-    
-      msgRFM:=copy(rfm,1,pos(#$4,rfm));//msgRFM表示一个完整的通信链路
-      rfm:=copy(rfm,pos(#$4,rfm)+1,MaxInt);
+      if uppercase(leftstr(trim(ls[j]),2))='O|' then SpecNo:=GetSpecNo(ls[j]);
 
-      if pos('O|',uppercase(msgRFM))<=0 then continue;//样本号行
-      if pos('R|',uppercase(msgRFM))<=0 then continue;//结果行
-
-      SpecNo:='';CheckDate:='';
-      
-      ls:=TStringList.Create;
-      ExtractStrings([#$D,#$A],[],Pchar(msgRFM),ls);//将消息的每行导入到字符串列表中
-      for j :=0  to ls.Count-1 do//一个消息中的每一行
+      if uppercase(leftstr(trim(ls[j]),2))='R|' then
       begin
-        if uppercase(leftstr(trim(ls[j]),2))='O|' then SpecNo:=GetSpecNo(ls[j]);
-
-        if uppercase(leftstr(trim(ls[j]),2))='R|' then
+        dlttype:='';sValue:='';
+        RegEx := TPerlRegEx.Create(nil);
+        RegEx.Subject := ls[j];
+        RegEx.RegEx   := '\|';
+        ls2 := TStringList.Create;
+        RegEx.Split(ls2,MaxInt);//MaxInt,表示能分多少就分多少
+        FreeAndNil(RegEx);
+        if ls2.Count>3 then
         begin
-          dlttype:='';sValue:='';
+          dlttype:=OnLineIDPrefix+ls2[2];
+          
           RegEx := TPerlRegEx.Create(nil);
-          RegEx.Subject := ls[j];
-          RegEx.RegEx   := '\|';
-          ls2 := TStringList.Create;
-          RegEx.Split(ls2,MaxInt);//MaxInt,表示能分多少就分多少
+          RegEx.Subject := ls2[2];
+          RegEx.RegEx   := '\^';
+          ls4 := TStringList.Create;
+          RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
           FreeAndNil(RegEx);
-          if ls2.Count>3 then
+          if ls4.Count>4 then
           begin
-            RegEx := TPerlRegEx.Create(nil);
-            RegEx.Subject := ls2[2];
-            RegEx.RegEx   := '\^';
-            ls4 := TStringList.Create;
-            RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
-            FreeAndNil(RegEx);
-            if ls4.Count>4 then
-            begin
-              if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
-              if ls4[3]='BC' then dlttype:=OnLineIDPrefix+ls4[4];//BacT3D,结果值有可能有几种(阴阳、时长等)，BC是阴阳，TTD是时长
-            end else dlttype:=OnLineIDPrefix+ls2[2];
-            ls4.Free;
+            if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
+            if ls4[3]='BC' then dlttype:=OnLineIDPrefix+ls4[4];//BacT3D,结果值有可能有几种(阴阳、时长等)，BC是阴阳，TTD是时长
+          end;
+          ls4.Free;
 
-            sValue:=ls2[3];
-          end;
-          if ls2.Count>12 then CheckDate:=copy(ls2[12],1,4)+'-'+copy(ls2[12],5,2)+'-'+copy(ls2[12],7,2)+' '+copy(ls2[12],9,2)+':'+copy(ls2[12],11,2);
-          ls2.Free;
-          if SpecNo='' then SpecNo:=formatdatetime('nnss',now);
-          ReceiveItemInfo:=VarArrayCreate([0,1-1],varVariant);
-          ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
-          if bRegister and(dlttype<>'') then
-          begin
-            FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
-            FInts.fData2Lis(ReceiveItemInfo,(SpecNo),CheckDate,
-              (GroupName),(SpecType),(SpecStatus),(EquipChar),
-              (CombinID),'',(LisFormCaption),(ConnectString),
-              (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-              ifRecLog,true,'常规');
-            if not VarIsEmpty(FInts) then FInts:= unAssigned;
-          end;
+          sValue:=ls2[3];
+        end;
+        if ls2.Count>12 then CheckDate:=copy(ls2[12],1,4)+'-'+copy(ls2[12],5,2)+'-'+copy(ls2[12],7,2)+' '+copy(ls2[12],9,2)+':'+copy(ls2[12],11,2);
+        ls2.Free;
+        if SpecNo='' then SpecNo:=formatdatetime('nnss',now);
+        ReceiveItemInfo:=VarArrayCreate([0,1-1],varVariant);
+        ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
+        if bRegister and(dlttype<>'') then
+        begin
+          FInts :=CreateOleObject('Data2LisSvr.Data2Lis');
+          FInts.fData2Lis(ReceiveItemInfo,(SpecNo),CheckDate,
+            (GroupName),(SpecType),(SpecStatus),(EquipChar),
+            (CombinID),'',(LisFormCaption),(ConnectString),
+            (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
+            ifRecLog,true,'常规');
+          if not VarIsEmpty(FInts) then FInts:= unAssigned;
         end;
       end;
-      ls.Free;
     end;
-    ls3.Free;
+    ls.Free;
   end;
+  ls5.Free;
 end;
 
 initialization
