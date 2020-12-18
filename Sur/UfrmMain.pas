@@ -323,7 +323,7 @@ var
   RegEx: TPerlRegEx;
 begin
   //ls3:=StrToList(Value,'|');
-  RegEx := TPerlRegEx.Create(nil);
+  RegEx := TPerlRegEx.Create;
   RegEx.Subject := Value;
   RegEx.RegEx   := '\|';
   ls3 := TStringList.Create;
@@ -341,7 +341,7 @@ begin
 
   //迪瑞CS-600B Start
   //ls4:=StrToList(result,'^');
-  RegEx := TPerlRegEx.Create(nil);
+  RegEx := TPerlRegEx.Create;
   RegEx.Subject := result;
   RegEx.RegEx   := '\^';
   ls4 := TStringList.Create;
@@ -539,7 +539,7 @@ begin
 
   ifHaveNotFinishedPack:=rightstr(rfm,1)<>#4;//最后一个字符不为#4,表示存在未结束的包
 
-  RegEx := TPerlRegEx.Create(nil);
+  RegEx := TPerlRegEx.Create;
   RegEx.Subject := rfm;
   RegEx.RegEx   := #4;//按04拆包
   ls5:=TStringList.Create;
@@ -567,7 +567,7 @@ begin
       if uppercase(leftstr(trim(ls[j]),2))='R|' then
       begin
         dlttype:='';sValue:='';
-        RegEx := TPerlRegEx.Create(nil);
+        RegEx := TPerlRegEx.Create;
         RegEx.Subject := ls[j];
         RegEx.RegEx   := '\|';
         ls2 := TStringList.Create;
@@ -577,7 +577,7 @@ begin
         begin
           dlttype:=OnLineIDPrefix+ls2[2];
           
-          RegEx := TPerlRegEx.Create(nil);
+          RegEx := TPerlRegEx.Create;
           RegEx.Subject := ls2[2];
           RegEx.RegEx   := '\^';
           ls4 := TStringList.Create;
