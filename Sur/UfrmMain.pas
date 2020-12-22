@@ -498,16 +498,16 @@ I2000SR传04给LIS,表示该次通信完成
     rfm:='';
     rfm:=rfm+Str;
     ComPort1.WriteStr(ACK);//发送确认指令
-    memo1.Lines.Add('发送06');
-    WriteLog('发送06');
+    memo1.Lines.Add('Response 06');
+    WriteLog('Response 06');
   end ELSE
   begin
     rfm:=rfm+Str;
     if rightstr(rfm,2)=#$D#$A then//收完一帧回复06(LIS的每个ComPort1RxChar事件接收到的数据并非完整的一帧，而是其中一部分数据)
     begin
       ComPort1.WriteStr(ACK);//发送确认指令//测试则注释
-      memo1.Lines.Add('发送06');
-      WriteLog('发送06');
+      memo1.Lines.Add('Response 06');
+      WriteLog('Response 06');
     end;
   end;
 end;
@@ -515,6 +515,7 @@ end;
 procedure TfrmMain.ComPort1RxFlag(Sender: TObject);
 //事件字符(EventChar)触发OnRxChar与OnRxFlag.据观察,先OnRxChar再OnRxFlag
 //非事件字符触发OnRxChar
+//如果EventChar=#4,设备端发送的字符串为#65#66#67#4#65#66#67#4(一次性发送,且有多个#4),则onRxFlag触发时rfm=#65#66#67#4#65#66#67#4
 VAR
   SpecNo:string;
   i,j:integer;
