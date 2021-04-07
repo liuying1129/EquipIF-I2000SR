@@ -92,6 +92,8 @@ var
   ifRecLog:boolean;//是否记录调试日志
   EquipUnid:integer;//设备唯一编号
 
+  SpecNo_Type:string;//联机号取值
+
   RFM:STRING;       //返回数据
   hnd:integer;
   bRegister:boolean;
@@ -241,6 +243,8 @@ begin
   SpecStatus:=ini.ReadString(IniSection,'默认样本状态','');
   CombinID:=ini.ReadString(IniSection,'组合项目代码','');
 
+  SpecNo_Type:=ini.ReadString(IniSection,'联机号取值','');
+
   LisFormCaption:=ini.ReadString(IniSection,'检验系统窗体标题','');
   EquipUnid:=ini.ReadInteger(IniSection,'设备唯一编号',-1);
 
@@ -319,37 +323,65 @@ end;
 
 function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
 var
-  ls3,ls4:tstrings;
+  ls3,ls4,ls5,ls6:tstrings;
   RegEx: TPerlRegEx;
 begin
-  //ls3:=StrToList(Value,'|');
-  RegEx := TPerlRegEx.Create;
-  RegEx.Subject := Value;
-  RegEx.RegEx   := '\|';
-  ls3 := TStringList.Create;
-  RegEx.Split(ls3,MaxInt);//MaxInt,表示能分多少就分多少
-  FreeAndNil(RegEx);
-
-  IF ls3.Count<3 then
+  if trim(SpecNo_Type)='日立008' then
   begin
-    ls3.Free;
-    result:=formatdatetime('nnss',now);
-    exit;
-  end;
-  result:=ls3[2];
-  ls3.Free;
+    RegEx := TPerlRegEx.Create;
+    RegEx.Subject := Value;
+    RegEx.RegEx   := '\|';
+    ls5 := TStringList.Create;
+    RegEx.Split(ls5,MaxInt);//MaxInt,表示能分多少就分多少
+    FreeAndNil(RegEx);
 
-  //迪瑞CS-600B Start
-  //ls4:=StrToList(result,'^');
-  RegEx := TPerlRegEx.Create;
-  RegEx.Subject := result;
-  RegEx.RegEx   := '\^';
-  ls4 := TStringList.Create;
-  RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
-  FreeAndNil(RegEx);
-  IF ls4.Count>1 then result:=ls4[1];
-  ls4.Free;
-  //迪瑞CS-600B Stop
+    IF ls5.Count<4 then
+    begin
+      ls5.Free;
+      result:=formatdatetime('nnss',now);
+      exit;
+    end;
+    result:=ls5[3];
+    ls5.Free;
+
+    RegEx := TPerlRegEx.Create;
+    RegEx.Subject := result;
+    RegEx.RegEx   := '\^';
+    ls6 := TStringList.Create;
+    RegEx.Split(ls6,MaxInt);//MaxInt,表示能分多少就分多少
+    FreeAndNil(RegEx);
+    IF ls6.Count>0 then result:=ls6[0];
+    ls6.Free;
+  end else
+  begin
+    RegEx := TPerlRegEx.Create;
+    RegEx.Subject := Value;
+    RegEx.RegEx   := '\|';
+    ls3 := TStringList.Create;
+    RegEx.Split(ls3,MaxInt);//MaxInt,表示能分多少就分多少
+    FreeAndNil(RegEx);
+
+    IF ls3.Count<3 then
+    begin
+      ls3.Free;
+      result:=formatdatetime('nnss',now);
+      exit;
+    end;
+    result:=ls3[2];
+    ls3.Free;
+
+    //迪瑞CS-600B Start
+    //ls4:=StrToList(result,'^');
+    RegEx := TPerlRegEx.Create;
+    RegEx.Subject := result;
+    RegEx.RegEx   := '\^';
+    ls4 := TStringList.Create;
+    RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
+    FreeAndNil(RegEx);
+    IF ls4.Count>1 then result:=ls4[1];
+    ls4.Free;
+    //迪瑞CS-600B Stop
+  end;
 
   result:='0000'+trim(result);
   result:=rightstr(result,4);
@@ -407,6 +439,7 @@ begin
       '工作组'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '仪器字母'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '联机标识前缀'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
+      '联机号取值'+#2+'Combobox'+#2+'日立008'+#2+'0'+#2+'日立生化LABOSPECT008AS,选择日立008.【O|1|602|301^50003^1^^S1^SC|...】'+#2+#3+
       '检验系统窗体标题'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本类型'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '默认样本状态'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
@@ -535,7 +568,7 @@ begin
   end;
   while pos(#$17,rfm)>0 do
   begin
-    delete(rfm,pos(#$17,rfm),5);//删除前面帧的最后5个字符<ETB><C1><C2><CR><LF>,暂时只发现GEM3000有ETB
+    delete(rfm,pos(#$17,rfm),5);//删除前面帧的最后5个字符<ETB><C1><C2><CR><LF>,暂时只发现GEM3000、日立生化LABOSPECT008AS有ETB
   end;
 
   ifHaveNotFinishedPack:=rightstr(rfm,1)<>#4;//最后一个字符不为#4,表示存在未结束的包
