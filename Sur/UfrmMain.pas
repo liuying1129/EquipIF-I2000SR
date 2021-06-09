@@ -556,12 +556,16 @@ VAR
   sValue:string;
   FInts:OleVariant;
   ReceiveItemInfo:OleVariant;
-  ls,ls2,ls4,ls5:tstrings;
+  ls,ls2,ls4,ls5,ls55:tstrings;
   CheckDate:string;
   msgRFM:STRING;//一个完整的消息
   RegEx: TPerlRegEx;
   ifHaveNotFinishedPack:boolean;
+
+  sYXJB:string;//优先级别
 begin
+  sYXJB:='常规';
+  
   while pos(#$2,rfm)>0 do
   begin
     delete(rfm,pos(#$2,rfm),2);//删除每帧的第一个字符(#$02),第二个字符(帧序号)
@@ -597,6 +601,21 @@ begin
     for j :=0  to ls.Count-1 do//一个消息中的每一行
     begin
       if uppercase(leftstr(trim(ls[j]),2))='O|' then SpecNo:=GetSpecNo(ls[j]);
+      
+      if(uppercase(leftstr(trim(ls[j]),2))='O|')and(trim(SpecNo_Type)='日立008') then//其他仪器是否使用该字段表示优先级别,待验证
+      //O|1||1^40001^1^^S1^SC|^^^28330^\^^^28365^|S||||||N||||1|||||||
+      //上面字符串中|S|的S表示急诊,常规为|R|.S=STAT;R=Routine
+      begin
+        RegEx := TPerlRegEx.Create;
+        RegEx.Subject := ls[j];
+        RegEx.RegEx   := '\|';
+        ls55 := TStringList.Create;
+        RegEx.Split(ls55,MaxInt);//MaxInt,表示能分多少就分多少
+        FreeAndNil(RegEx);
+
+        IF(ls55.Count>=6)and(trim(ls55[5])='S') then sYXJB:='急诊' else sYXJB:='常规';
+        ls55.Free;
+      end;
 
       if uppercase(leftstr(trim(ls[j]),2))='R|' then
       begin
@@ -638,7 +657,7 @@ begin
             (GroupName),(SpecType),(SpecStatus),(EquipChar),
             (CombinID),'',(LisFormCaption),(ConnectString),
             (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-            ifRecLog,true,'常规',
+            ifRecLog,true,sYXJB,
             '',
             EquipUnid,
             '','','','',
