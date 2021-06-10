@@ -91,6 +91,7 @@ var
   OnLineIDPrefix:string;//联机标识前缀
   ifRecLog:boolean;//是否记录调试日志
   EquipUnid:integer;//设备唯一编号
+  YXJB:STRING;//优先级别
 
   SpecNo_Type:string;//联机号取值
 
@@ -245,6 +246,8 @@ begin
 
   SpecNo_Type:=ini.ReadString(IniSection,'联机号取值','');
 
+  YXJB:=ini.ReadString(IniSection,'优先级别','常规');//优先级别
+  if trim(YXJB)='' then YXJB:='常规';
   LisFormCaption:=ini.ReadString(IniSection,'检验系统窗体标题','');
   EquipUnid:=ini.ReadInteger(IniSection,'设备唯一编号',-1);
 
@@ -325,6 +328,8 @@ function TfrmMain.GetSpecNo(const Value:string):string; //取得联机号
 var
   ls3,ls4,ls5,ls6:tstrings;
   RegEx: TPerlRegEx;
+  STAT008:boolean;//表示日立008急诊样本
+  i_result:integer;
 begin
   if trim(SpecNo_Type)='日立008' then
   begin
@@ -342,6 +347,9 @@ begin
       exit;
     end;
     result:=ls5[3];
+
+    IF(ls5.Count>=6)and(trim(ls5[5])='S') then STAT008:=true else STAT008:=false;
+
     ls5.Free;
 
     RegEx := TPerlRegEx.Create;
@@ -352,6 +360,11 @@ begin
     FreeAndNil(RegEx);
     IF ls6.Count>0 then result:=ls6[0];
     ls6.Free;
+
+    if STAT008 then//越秀中医要求,急诊样本号加5000.如1#急诊样本,需要变成5001
+    begin
+      if TryStrToInt(result,i_result) then result:=inttostr(5000+i_result);
+    end;
   end else
   begin
     RegEx := TPerlRegEx.Create;
@@ -446,6 +459,7 @@ begin
       '组合项目代码'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
       '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
+      '优先级别'+#2+'Combobox'+#2+'自动'+#13+'常规'+#2+'0'+#2+'自动:根据仪器取值;其他:取设置值'+#2+#3+
       '设备唯一编号'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
@@ -561,11 +575,7 @@ VAR
   msgRFM:STRING;//一个完整的消息
   RegEx: TPerlRegEx;
   ifHaveNotFinishedPack:boolean;
-
-  sYXJB:string;//优先级别
 begin
-  sYXJB:='常规';
-  
   while pos(#$2,rfm)>0 do
   begin
     delete(rfm,pos(#$2,rfm),2);//删除每帧的第一个字符(#$02),第二个字符(帧序号)
@@ -602,7 +612,7 @@ begin
     begin
       if uppercase(leftstr(trim(ls[j]),2))='O|' then SpecNo:=GetSpecNo(ls[j]);
       
-      if(uppercase(leftstr(trim(ls[j]),2))='O|')and(trim(SpecNo_Type)='日立008') then//其他仪器是否使用该字段表示优先级别,待验证
+      if(uppercase(leftstr(trim(ls[j]),2))='O|')and(trim(YXJB)='自动') then//日立008可选择自动,其他仪器是否使用该字段表示优先级别,待验证
       //O|1||1^40001^1^^S1^SC|^^^28330^\^^^28365^|S||||||N||||1|||||||
       //上面字符串中|S|的S表示急诊,常规为|R|.S=STAT;R=Routine
       begin
@@ -613,7 +623,7 @@ begin
         RegEx.Split(ls55,MaxInt);//MaxInt,表示能分多少就分多少
         FreeAndNil(RegEx);
 
-        IF(ls55.Count>=6)and(trim(ls55[5])='S') then sYXJB:='急诊' else sYXJB:='常规';
+        IF(ls55.Count>=6)and(trim(ls55[5])='S') then YXJB:='急诊' else YXJB:='常规';
         ls55.Free;
       end;
 
@@ -657,7 +667,7 @@ begin
             (GroupName),(SpecType),(SpecStatus),(EquipChar),
             (CombinID),'',(LisFormCaption),(ConnectString),
             (QuaContSpecNoG),(QuaContSpecNo),(QuaContSpecNoD),'',
-            ifRecLog,true,sYXJB,
+            ifRecLog,true,YXJB,
             '',
             EquipUnid,
             '','','','',
