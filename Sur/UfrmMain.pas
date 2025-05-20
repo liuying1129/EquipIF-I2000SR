@@ -469,6 +469,7 @@ I2000SR传数据(即消息message)给LIS,LIS收到一帧就回复06.
 --所有前面帧格式理论上不可能出现-------------------------------------------------------------
 Lis每收到一帧回复06
 I2000SR传04给LIS,表示该次通信完成
+GEM3000传04给LIS,表示该次通信完成，Lis回复04.该次通信链路结束（待验证：需要回复04?）
 }
 
   if Str=#$5 then//一次通信链路的开始
@@ -488,6 +489,11 @@ I2000SR传04给LIS,表示该次通信完成
       WriteLog('Response 06');
     end;
   end;
+  {  if pos(#$4,Str)>0 then//一次通信链路的结束  （待验证GEM3000：需要回复04?）
+  begin
+    ComPort1.WriteStr(EOT);//发送确认指令
+    memo1.Lines.Add('发送04');
+  end}
 end;
 
 procedure TfrmMain.ComPort1RxFlag(Sender: TObject);
