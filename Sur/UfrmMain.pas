@@ -43,6 +43,7 @@ type
     procedure ComPort1RxChar(Sender: TObject; Count: Integer);
     procedure ComPort1RxFlag(Sender: TObject);
     procedure N3Click(Sender: TObject);
+    procedure Memo1Change(Sender: TObject);
   private
     { Private declarations }
     procedure UpdateConfig;{配置文件生效}
@@ -84,6 +85,11 @@ var
   YXJB:STRING;//优先级别
 
   SpecNo_Type:string;//联机号取值
+
+  NoDtlStr:integer;//联机标识位
+  NoValueStr:integer;//检验结果位
+  RegExDlttype:String;//匹配联机标识的正则
+  RegExValue:String;//匹配检验结果的正则
 
   RFM:STRING;       //返回数据
   hnd:integer;
@@ -203,6 +209,11 @@ begin
   LisFormCaption:=ini.ReadString(IniSection,'检验系统窗体标题','');
   EquipUnid:=ini.ReadInteger(IniSection,'设备唯一编号',-1);
 
+  NoDtlStr:=ini.ReadInteger(IniSection,'联机标识位',2);
+  RegExDlttype:=ini.ReadString(IniSection,'匹配联机标识的正则','');
+  NoValueStr:=ini.ReadInteger(IniSection,'检验结果位',3);
+  RegExValue:=ini.ReadString(IniSection,'匹配检验结果的正则','');
+  
   QuaContSpecNoG:=ini.ReadString(IniSection,'高值质控联机号','9999');
   QuaContSpecNo:=ini.ReadString(IniSection,'常值质控联机号','9998');
   QuaContSpecNoD:=ini.ReadString(IniSection,'低值质控联机号','9997');
@@ -375,8 +386,17 @@ end;
 procedure TfrmMain.ToolButton2Click(Sender: TObject);
 var
   ss:string;
+  lsComPort:TStrings;
+  sComPort:String;
 begin
-    ss:='串口选择'+#2+'Combobox'+#2+'COM1'+#13+'COM2'+#13+'COM3'+#13+'COM4'+#2+'0'+#2+#2+#3+
+  //获取串口列表 begin
+  lsComPort := TStringList.Create;
+  EnumComPorts(lsComPort);
+  sComPort:=lsComPort.Text;
+  lsComPort.Free;
+  //获取串口列表 end
+
+    ss:='串口选择'+#2+'Combobox'+#2+sComPort+#2+'0'+#2+#2+#3+
       '波特率'+#2+'Combobox'+#2+'19200'+#13+'9600'+#13+'4800'+#13+'2400'+#13+'1200'+#2+'0'+#2+#2+#3+
       '数据位'+#2+'Combobox'+#2+'8'+#13+'7'+#13+'6'+#13+'5'+#2+'0'+#2+#2+#3+
       '停止位'+#2+'Combobox'+#2+'1'+#13+'1.5'+#13+'2'+#2+'0'+#2+#2+#3+
@@ -392,6 +412,10 @@ begin
       '开机自动运行'+#2+'CheckListBox'+#2+#2+'1'+#2+#2+#3+
       '调试日志'+#2+'CheckListBox'+#2+#2+'0'+#2+'注:强烈建议在正常运行时关闭'+#2+#3+
       '优先级别'+#2+'Combobox'+#2+'自动'+#13+'常规'+#2+'0'+#2+'自动:根据仪器取值;其他:取设置值'+#2+#3+
+      '联机标识位'+#2+'Edit'+#2+#2+'1'+#2+'R行用垂线分隔,从0开始,第几位'+#2+#3+
+      '匹配联机标识的正则'+#2+'Edit'+#2+#2+'1'+#2+'在上述内容中匹配'+#2+#3+
+      '检验结果位'+#2+'Edit'+#2+#2+'1'+#2+'R行用垂线分隔,从0开始,第几位'+#2+#3+
+      '匹配检验结果的正则'+#2+'Edit'+#2+#2+'1'+#2+'在上述内容中匹配'+#2+#3+
       '设备唯一编号'+#2+'Edit'+#2+#2+'1'+#2+#2+#3+
       '高值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
       '常值质控联机号'+#2+'Edit'+#2+#2+'2'+#2+#2+#3+
@@ -450,7 +474,6 @@ VAR
 begin
   ComPort1.ReadStr(Str,count);
   
-  if length(memo1.Lines.Text)>=60000 then memo1.Lines.Clear;//memo只能接受64K个字符
   memo1.Lines.Add(Str);
   memo1.Lines.Add(StrToHex(pchar(Str)));
   WriteLog(pchar(Str));
@@ -507,11 +530,12 @@ VAR
   sValue:string;
   FInts:OleVariant;
   ReceiveItemInfo:OleVariant;
-  ls,ls2,ls4,ls5,ls55:tstrings;
+  ls,ls2,ls5,ls55:tstrings;
   CheckDate:string;
   msgRFM:STRING;//一个完整的消息
-  RegEx: TPerlRegEx;
+  RegEx,PerlRegEx: TPerlRegEx;
   ifHaveNotFinishedPack:boolean;
+  ifMatch:Boolean;
 begin
   while pos(#$2,rfm)>0 do
   begin
@@ -573,28 +597,84 @@ begin
         ls2 := TStringList.Create;
         RegEx.Split(ls2,MaxInt);//MaxInt,表示能分多少就分多少
         FreeAndNil(RegEx);
-        if ls2.Count>3 then
+        if ls2.Count>NoValueStr then//正常来说，NoValueStr一定大于NoDtlStr
         begin
-          dlttype:=OnLineIDPrefix+ls2[2];
+          dlttype:=OnLineIDPrefix+ls2[NoDtlStr];
+
+          //获得联机标识 begin
+          PerlRegEx:=TPerlRegEx.Create;
+          PerlRegEx.RegEx:=RegExDlttype;
+          //PerlRegEx.Options:=PerlRegEx.Options+[preUnGreedy];//正则表达式中控制贪婪模式,以便更好的灵活性
+          PerlRegEx.Subject:=dlttype;
+          ifMatch:=False;//初始化
+          Try
+            ifMatch:=PerlRegEx.Match;//正则表达式为空、语法不正确，Match方法会抛出异常
+          except
+            on E:Exception do
+            begin
+              memo1.Lines.Add('匹配联机标识报错:'+E.Message);
+            end;
+          end;
+          if ifMatch then
+          begin
+            dlttype:=PerlRegEx.MatchedText;//Groups[0]与MatchedText功能一样
+            //GroupCount为捕获组数量
+            //Groups[1] 第一个捕获组匹配的文本
+            //Groups[2] 第二个捕获组匹配的文本，以此类推
+            if PerlRegEx.GroupCount>0 then dlttype:=PerlRegEx.Groups[1];//支持捕获组匹配.如使用捕获组,获取结果一定是Groups[1]
+          end;
+          FreeAndNil(PerlRegEx);
+          //获得联机标识 end
           
-          RegEx := TPerlRegEx.Create;
+          {RegEx := TPerlRegEx.Create;
           RegEx.Subject := ls2[2];
           RegEx.RegEx   := '\^';
           ls4 := TStringList.Create;
           RegEx.Split(ls4,MaxInt);//MaxInt,表示能分多少就分多少
           FreeAndNil(RegEx);
+          if ls4.Count>3 then//2025-12-21板桥-全自动生化免疫检测系统
+          begin
+            dlttype:=OnLineIDPrefix+ls4[0];
+          end;
           if ls4.Count>4 then
           begin
             if rightstr(ls2[2],2)='^F' then dlttype:=OnLineIDPrefix+ls4[4];//结果值有可能有几种(实际结果、比率等)，^F貌似是实际结果
             if ls4[3]='BC' then dlttype:=OnLineIDPrefix+ls4[4];//BacT3D,结果值有可能有几种(阴阳、时长等)，BC是阴阳，TTD是时长
           end;
-          ls4.Free;
+          ls4.Free;//}
 
-          sValue:=ls2[3];
+          sValue:=ls2[NoValueStr];
+          //sValue:=StringReplace(sValue,'^','',[rfReplaceAll,rfIgnoreCase]);//板桥-全自动生化免疫检测系统
+
+          //获得检验结果 begin
+          PerlRegEx:=TPerlRegEx.Create;
+          PerlRegEx.RegEx:=RegExValue;
+          //PerlRegEx.Options:=PerlRegEx.Options+[preUnGreedy];//正则表达式中控制贪婪模式.因为获取检验结果有时需要贪婪模式
+          PerlRegEx.Subject:=sValue;
+          ifMatch:=False;//初始化
+          Try
+            ifMatch:=PerlRegEx.Match;//正则表达式为空、语法不正确，Match方法会抛出异常
+          except
+            on E:Exception do
+            begin
+              memo1.Lines.Add('匹配检验结果报错:'+E.Message);
+            end;
+          end;
+          if ifMatch then
+          begin
+            sValue:=PerlRegEx.MatchedText;//Groups[0]与MatchedText功能一样
+            //GroupCount为捕获组数量
+            //Groups[1] 第一个捕获组匹配的文本
+            //Groups[2] 第二个捕获组匹配的文本，以此类推
+            if PerlRegEx.GroupCount>0 then sValue:=PerlRegEx.Groups[1];//支持捕获组匹配.如使用捕获组,获取结果一定是Groups[1]
+            sValue:=trim(sValue);
+          end;
+          FreeAndNil(PerlRegEx);
+          //获得检验结果 end
         end;
         if ls2.Count>12 then CheckDate:=copy(ls2[12],1,4)+'-'+copy(ls2[12],5,2)+'-'+copy(ls2[12],7,2)+' '+copy(ls2[12],9,2)+':'+copy(ls2[12],11,2);
         ls2.Free;
-        if SpecNo='' then SpecNo:=formatdatetime('nnss',now);
+
         ReceiveItemInfo:=VarArrayCreate([0,1-1],varVariant);
         ReceiveItemInfo[0]:=VarArrayof([dlttype,sValue,'','']);
         if bRegister and(dlttype<>'') then
@@ -624,6 +704,11 @@ procedure TfrmMain.N3Click(Sender: TObject);
 begin
   if (MessageDlg('退出后将不再接收设备数据,确定退出吗？', mtWarning, [mbYes, mbNo], 0) <> mrYes) then exit;
   application.Terminate;
+end;
+
+procedure TfrmMain.Memo1Change(Sender: TObject);
+begin
+  if length(memo1.Lines.Text)>=1000000 then memo1.Lines.Clear;//memo在win98只能接受64K个字符,在win2000无限制
 end;
 
 initialization

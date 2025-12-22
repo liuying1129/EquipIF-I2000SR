@@ -94,6 +94,7 @@ object frmMain: TfrmMain
     ImeName = #19975#33021#20116#31508'EXE'#22806#25346#29256
     ScrollBars = ssBoth
     TabOrder = 1
+    OnChange = Memo1Change
   end
   object BitBtn1: TBitBtn
     Left = 456
